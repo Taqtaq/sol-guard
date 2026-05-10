@@ -56,18 +56,48 @@ export async function sendTelegramAlert(alert) {
   if (!config.telegramBotToken || !config.telegramChatId) {
     return { sent: false, reason: "Telegram env vars are not configured." };
   }
-  const text = [
-    `SolGuard Alert: ${alert.title}`,
-    `Severity: ${alert.severity}`,
-    alert.explanation,
-    alert.walletAddress ? `Wallet: ${alert.walletAddress}` : "",
-    alert.mintAddress ? `Mint: ${alert.mintAddress}` : "",
-  ].filter(Boolean).join("\n");
-  const response = await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: config.telegramChatId, text }),
-  });
-  if (!response.ok) return { sent: false, reason: `Telegram API returned ${response.status}` };
-  return { sent: true };
+  try {
+    const text = [
+      `SolGuard Alert: ${alert.title}`,
+      `Severity: ${alert.severity}`,
+      alert.explanation,
+      alert.walletAddress ? `Wallet: ${alert.walletAddress}` : "",
+      alert.mintAddress ? `Mint: ${alert.mintAddress}` : "",
+    ].filter(Boolean).join("\n");
+    const response = await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(8_000),
+      body: JSON.stringify({ chat_id: config.telegramChatId, text }),
+    });
+    if (!response.ok) return { sent: false, reason: `Telegram API returned ${response.status}` };
+    return { sent: true };
+  } catch (error) {
+    return { sent: false, reason: error.message || "Telegram request failed." };
+  }
+}
+
+export async function sendTelegramForRiskAlerts(alerts, context = {}) {
+  const actionable = alerts.filter((alert) => ["CRITICAL", "HIGH"].includes(alert.severity));
+  if (!actionable.length) return { attempted: false, sent: 0, reason: "No high/critical alerts." };
+  if (!config.telegramBotToken || !config.telegramChatId) {
+    return { attempted: false, sent: 0, reason: "Telegram env vars are not configured." };
+  }
+
+  let sent = 0;
+  const failures = [];
+  for (const alert of actionable.slice(0, 3)) {
+    const result = await sendTelegramAlert({
+      ...alert,
+      title: context.reason ? `${alert.title} (${context.reason})` : alert.title,
+    });
+    if (result.sent) sent += 1;
+    else failures.push(result.reason);
+  }
+  return {
+    attempted: true,
+    sent,
+    failed: failures.length,
+    reason: failures[0],
+  };
 }

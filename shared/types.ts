@@ -22,6 +22,30 @@ export interface SecurityAlert {
   mintAddress?: string;
 }
 
+export type IntegrationStatus = "Configured" | "Missing" | "Working" | "Failed";
+
+export interface IntegrationDiagnostic {
+  name: "SOLANA_RPC_URL" | "HELIUS_API_KEY" | "BIRDEYE_API_KEY" | "TELEGRAM_BOT_TOKEN" | "TELEGRAM_CHAT_ID" | "KNOWN_SCAM_MINTS";
+  configured: boolean;
+  status: IntegrationStatus;
+  detail: string;
+  checkedAt: string;
+}
+
+export interface DiagnosticsResponse {
+  checkedAt: string;
+  integrations: IntegrationDiagnostic[];
+  telegramReady: boolean;
+  alertPolicy: string[];
+}
+
+export interface TelegramDelivery {
+  attempted: boolean;
+  sent: number;
+  failed?: number;
+  reason?: string;
+}
+
 export interface NftRisk {
   mintAddress: string;
   name: string;
@@ -106,6 +130,7 @@ export interface WalletScanResponse {
   nftRisks: NftRisk[];
   alerts: SecurityAlert[];
   scoreHistory: ScoreHistoryPoint[];
+  telegram?: TelegramDelivery;
   monitoring?: {
     status: "active" | "inactive";
     intervalSeconds: number;
@@ -126,6 +151,7 @@ export interface TokenScanResponse {
   summary: string[];
   asset: ScannedAsset;
   alerts: SecurityAlert[];
+  telegram?: TelegramDelivery;
   whaleSummary: WhaleSummary;
   evidence: Evidence;
   isMock?: boolean;
@@ -160,5 +186,6 @@ export interface SimulationResponse {
   approvals: Array<{ owner?: string; delegate?: string; riskLevel: RiskLevel; explanation: string }>;
   suspiciousPrograms: Array<{ programId: string; label: string; explanation: string }>;
   alerts: SecurityAlert[];
+  telegram?: TelegramDelivery;
   evidence: Record<string, string | number | boolean | null | undefined>;
 }

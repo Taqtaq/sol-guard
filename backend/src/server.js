@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { config } from "./config.js";
-import { createAlert, sendTelegramAlert } from "./alertEngine.js";
+import { createAlert, sendTelegramAlert, sendTelegramForRiskAlerts } from "./alertEngine.js";
+import { runDiagnostics } from "./diagnostics.js";
 import { readScoreHistory } from "./historyStore.js";
 import { monitorWallet } from "./monitoring.js";
 import { simulateTransaction } from "./simulation.js";
@@ -32,9 +33,19 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+app.get("/api/diagnostics", async (_req, res, next) => {
+  try {
+    res.json(await runDiagnostics());
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/scan-wallet", async (req, res, next) => {
   try {
-    res.json(await scanWallet(req.body.walletAddress));
+    const scan = await scanWallet(req.body.walletAddress);
+    const telegram = await sendTelegramForRiskAlerts(scan.alerts, { reason: "wallet scan" });
+    res.json({ ...scan, telegram });
   } catch (error) {
     next(error);
   }
@@ -46,6 +57,14 @@ app.post("/api/scan-token", async (req, res, next) => {
     const scannedAt = nowIso();
     const asset = await analyzeMint(mintAddress);
     const unavailableCount = asset.riskFlags.filter((riskFlag) => riskFlag.status === "unknown").length;
+    const alerts = asset.riskFlags
+      .filter((riskFlag) => ["HIGH", "CRITICAL"].includes(riskFlag.severity))
+      .map((riskFlag) => createAlert(riskFlag, {
+        mintAddress,
+        source: "pre-trade",
+        evidence: { symbol: asset.symbol, riskScore: asset.riskScore, flagEvidence: riskFlag.evidence },
+      }));
+    const telegram = await sendTelegramForRiskAlerts(alerts, { reason: "pre-trade token scan" });
     res.json({
       mintAddress,
       riskScore: asset.riskScore,
@@ -57,13 +76,8 @@ app.post("/api/scan-token", async (req, res, next) => {
         `${unavailableCount} checks unavailable`,
       ],
       asset,
-      alerts: asset.riskFlags
-        .filter((riskFlag) => ["HIGH", "CRITICAL"].includes(riskFlag.severity))
-        .map((riskFlag) => createAlert(riskFlag, {
-          mintAddress,
-          source: "pre-trade",
-          evidence: { symbol: asset.symbol, riskScore: asset.riskScore, flagEvidence: riskFlag.evidence },
-        })),
+      alerts,
+      telegram,
       whaleSummary: asset.whaleSummary,
       evidence: {
         mintAddress,
@@ -84,7 +98,10 @@ app.post("/api/scan-token", async (req, res, next) => {
 
 app.post("/api/monitor-wallet", async (req, res, next) => {
   try {
-    res.json(await monitorWallet(req.body.walletAddress));
+    const scan = await monitorWallet(req.body.walletAddress);
+    const monitoringAlerts = scan.alerts.filter((alert) => alert.source === "monitoring");
+    const telegram = await sendTelegramForRiskAlerts(monitoringAlerts, { reason: "monitoring" });
+    res.json({ ...scan, telegram });
   } catch (error) {
     next(error);
   }
@@ -92,7 +109,9 @@ app.post("/api/monitor-wallet", async (req, res, next) => {
 
 app.post("/api/simulate-transaction", async (req, res, next) => {
   try {
-    res.json(await simulateTransaction(req.body || {}));
+    const simulation = await simulateTransaction(req.body || {});
+    const telegram = await sendTelegramForRiskAlerts(simulation.alerts, { reason: "transaction simulation" });
+    res.json({ ...simulation, telegram });
   } catch (error) {
     next(error);
   }

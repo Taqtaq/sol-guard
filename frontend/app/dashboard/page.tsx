@@ -14,18 +14,20 @@ import {
   RefreshCw,
   Search,
   Send,
+  Settings,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { NftRisk, RiskFlag, RiskLevel, ScannedAsset, ScoreHistoryPoint, SecurityAlert } from "@shared/types";
+import type { DiagnosticsResponse, IntegrationDiagnostic, NftRisk, RiskFlag, RiskLevel, ScannedAsset, ScoreHistoryPoint, SecurityAlert } from "@shared/types";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { WalletButton } from "@/components/wallet/WalletButton";
 import { useWalletRiskScan } from "@/hooks/useWalletRiskScan";
+import { getDiagnostics, sendTelegramTestAlert } from "@/lib/api";
 import { cn, formatAddress } from "@/lib/utils";
 
 const riskClasses: Record<RiskLevel, string> = {
@@ -402,6 +404,109 @@ function AssetTable({ assets }: { assets: ScannedAsset[] }) {
   );
 }
 
+const integrationClasses: Record<IntegrationDiagnostic["status"], string> = {
+  Working: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  Configured: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+  Missing: "border-zinc-700 bg-zinc-900/60 text-zinc-400",
+  Failed: "border-red-500/30 bg-red-500/10 text-red-300",
+};
+
+function SettingsDiagnosticsPanel() {
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [telegramTesting, setTelegramTesting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadDiagnostics = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      setDiagnostics(await getDiagnostics());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Diagnostics failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => void loadDiagnostics(), 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const sendTest = async () => {
+    setTelegramTesting(true);
+    setMessage(null);
+    try {
+      const result = await sendTelegramTestAlert();
+      setMessage(result.telegram.sent ? "Telegram test alert sent." : result.telegram.reason || "Telegram test was not sent.");
+      void loadDiagnostics();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Telegram test failed");
+    } finally {
+      setTelegramTesting(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-600">Settings / Diagnostics</p>
+          <p className="mt-1 text-xs text-zinc-500">Integration health without exposing secret values.</p>
+        </div>
+        <Settings className="h-4 w-4 text-emerald-300" />
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {loading && <p className="text-sm text-zinc-500">Checking integrations...</p>}
+        {diagnostics?.integrations.map((item) => (
+          <div key={item.name} className="rounded-lg border border-zinc-800 bg-black/35 px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-xs text-zinc-200">{item.name}</p>
+              <span className={cn("rounded-md border px-2 py-1 text-[10px] font-semibold", integrationClasses[item.status])}>
+                {item.status}
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-500">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-zinc-800 bg-black/30 p-3">
+        <p className="text-xs font-medium text-zinc-200">Telegram alerts are sent only when:</p>
+        <div className="mt-2 space-y-1 text-xs text-zinc-500">
+          {(diagnostics?.alertPolicy || [
+            "Critical/high risk wallet scan findings",
+            "Suspicious token detected during pre-trade scan",
+            "Monitoring detects a new risky asset",
+            "Wallet safety score drops meaningfully",
+            "Simulation detects a dangerous transaction or approval",
+          ]).map((item) => <p key={item}>- {item}</p>)}
+        </div>
+        <p className="mt-2 text-xs text-zinc-600">Safe scans and normal page loads do not send Telegram alerts.</p>
+      </div>
+
+      {message && (
+        <div className="mt-4 rounded-lg border border-zinc-800 bg-black/40 px-3 py-2 text-xs text-zinc-300">
+          {message}
+        </div>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <Button disabled={loading} variant="secondary" onClick={() => void loadDiagnostics()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
+        <Button disabled={telegramTesting || !diagnostics?.telegramReady} onClick={() => void sendTest()}>
+          {telegramTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+          Send test Telegram alert
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mintAddress, setMintAddress] = useState("");
@@ -627,6 +732,8 @@ function DashboardContent() {
                     ))}
                   </div>
                 </div>
+
+                <SettingsDiagnosticsPanel />
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
                   <p className="text-xs uppercase tracking-[0.2em] text-zinc-600">Suspicious NFT Detection</p>

@@ -28,6 +28,17 @@ test("health endpoint returns service metadata", async () => {
   assert.ok(body.rpcSource);
 });
 
+test("diagnostics endpoint reports integration statuses without secrets", async () => {
+  const response = await fetch(`${baseUrl}/api/diagnostics`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(Array.isArray(body.integrations));
+  assert.ok(body.integrations.some((item) => item.name === "SOLANA_RPC_URL"));
+  assert.ok(body.integrations.some((item) => item.name === "TELEGRAM_BOT_TOKEN"));
+  assert.equal(typeof body.telegramReady, "boolean");
+  assert.ok(Array.isArray(body.alertPolicy));
+});
+
 test("wallet scan validates wallet address shape", async () => {
   const response = await fetch(`${baseUrl}/api/scan-wallet`, {
     method: "POST",
@@ -60,4 +71,15 @@ test("simulation endpoint supports intent-only checks", async () => {
   const body = await response.json();
   assert.equal(body.simulationMode, "mock");
   assert.ok(Array.isArray(body.summary));
+});
+
+test("telegram test endpoint is safe when env vars are missing", async () => {
+  const response = await fetch(`${baseUrl}/api/telegram/test-alert`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.telegram.sent, false);
 });

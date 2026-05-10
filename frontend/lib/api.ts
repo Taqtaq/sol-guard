@@ -1,5 +1,6 @@
 import type {
   MonitorWalletResponse,
+  DiagnosticsResponse,
   ScoreHistoryPoint,
   SimulationRequest,
   SimulationResponse,
@@ -47,4 +48,19 @@ export async function getScoreHistory(walletAddress: string) {
     throw new Error(data?.error || `History request failed: ${response.status}`);
   }
   return data as { walletAddress: string; history: ScoreHistoryPoint[] };
+}
+
+export async function getDiagnostics() {
+  const response = await fetch(`${BACKEND_URL}/api/diagnostics`);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error || `Diagnostics request failed: ${response.status}`);
+  }
+  return data as DiagnosticsResponse;
+}
+
+export async function sendTelegramTestAlert() {
+  return postJson<{ alert: unknown; telegram: { sent: boolean; reason?: string } }>("/api/telegram/test-alert", {
+    evidence: { source: "dashboard-settings" },
+  });
 }
