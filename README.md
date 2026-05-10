@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SolGuard
 
-## Getting Started
+SolGuard is a Solana wallet and token security platform. The repository is split into:
 
-First, run the development server:
+- `frontend` - Next.js app, landing page, Phantom wallet connect, dashboard, pre-trade scan UI
+- `backend` - Express API service for Solana RPC scans, monitoring, alerts, simulation, score history
+- `shared` - shared TypeScript API contract types used by the frontend
+
+The landing page remains at `/`. The security console is at `/dashboard`.
+
+## Prerequisites
+
+- Node.js 20+
+- npm
+- Phantom browser extension for wallet-connect testing
+- Strongly recommended: a private Solana RPC endpoint. Public RPC often rate-limits wallet scans.
+
+## Install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run install:all
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Frontend:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+copy frontend\.env.example frontend\.env.local
+```
 
-## Learn More
+Backend:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+copy backend\.env.example backend\.env
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Backend variables:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+PORT=8000
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+FRONTEND_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
+HELIUS_API_KEY=
+BIRDEYE_API_KEY=
+KNOWN_SCAM_MINTS=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+```
 
-## Deploy on Vercel
+If optional APIs are not configured, SolGuard marks those checks as unavailable instead of turning missing data into fake risk.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Run Locally
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Terminal 1:
+
+```bash
+npm run dev:backend
+```
+
+Terminal 2:
+
+```bash
+npm run dev:frontend
+```
+
+Open:
+
+```text
+http://localhost:3000/dashboard
+```
+
+## API
+
+- `GET /api/health`
+- `POST /api/scan-wallet`
+- `POST /api/scan-token`
+- `POST /api/monitor-wallet`
+- `POST /api/simulate-transaction`
+- `GET /api/score-history/:wallet`
+- `POST /api/telegram/test-alert`
+
+## What Is Real
+
+- Phantom integration uses the official Solana wallet adapter providers.
+- Wallet scan discovers visible SPL and Token-2022 accounts from Solana RPC.
+- Zero-balance visible token accounts are included and labeled as possible spam/inactive assets, not automatic scams.
+- Token analysis checks mint authority, freeze authority, metadata, holder concentration, liquidity, known-scam sources, delegates, abnormal supply, and suspicious metadata links.
+- Monitoring stores wallet snapshots and compares future scans for new assets, balance changes, authority changes, liquidity drops, NFT changes, and score drops.
+- Alerts have severity, title, explanation, evidence, timestamp, source, wallet, and mint.
+- Score history is stored locally in `backend/data`.
+- Transaction simulation decodes supplied transaction payloads when possible and otherwise runs safe intent-level pre-flight checks.
+
+## Best Results
+
+Use these for a stronger demo:
+
+- `SOLANA_RPC_URL` from Helius, QuickNode, Triton, Alchemy, or another paid RPC provider
+- `HELIUS_API_KEY` for NFT and richer asset metadata
+- `BIRDEYE_API_KEY` for scam/security enrichment
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for alert delivery
+- `KNOWN_SCAM_MINTS` for local threat-intel demos
+
+## Verification
+
+```bash
+npm run lint
+npm run build
+npm run test:backend
+```
+
+Manual browser verification:
+
+1. Start backend and frontend.
+2. Open `/dashboard`.
+3. Click `Connect Wallet`.
+4. Select Phantom in the official wallet modal.
+5. Approve in Phantom.
+6. Confirm the shortened wallet address renders.
+7. Confirm wallet scan starts automatically.
+8. Run a token scan, monitoring scan, and simulation preview.
+
+## Deployment Notes
+
+- Deploy `frontend` to Vercel or another Next.js host.
+- Deploy `backend` to Render, Railway, Fly.io, or a Node-capable VPS.
+- Set `NEXT_PUBLIC_BACKEND_URL` in the frontend host to the deployed backend URL.
+- Set backend CORS with `FRONTEND_ORIGIN=https://your-frontend-domain`.
+- Use a private RPC URL for production reliability.

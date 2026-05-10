@@ -3,8 +3,8 @@
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Wallet, ChevronDown, LogOut } from "lucide-react";
-import { useState } from "react";
+import { Wallet, ChevronDown, LogOut, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { cn, formatAddress } from "@/lib/utils";
 
 interface WalletButtonProps {
@@ -12,16 +12,50 @@ interface WalletButtonProps {
   className?: string;
 }
 
+type WalletUiState = "disconnected" | "connecting" | "connected" | "rejected" | "error";
+
 export function WalletButton({ variant = "default", className }: WalletButtonProps) {
   const { setVisible } = useWalletModal();
-  const { publicKey, disconnect, connecting } = useWallet();
+  const { publicKey, disconnect, connecting, connected } = useWallet();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [walletState, setWalletState] = useState<WalletUiState>("disconnected");
   const isCompact = variant === "compact";
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      const timer = setTimeout(() => setWalletState("connected"), 0);
+      return () => clearTimeout(timer);
+    }
+    if (connecting) {
+      const timer = setTimeout(() => setWalletState("connecting"), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [connected, connecting, publicKey]);
+
+  useEffect(() => {
+    const handleWalletError = (event: Event) => {
+      const detail = (event as CustomEvent<{ rejected?: boolean }>).detail;
+      setWalletState(detail?.rejected ? "rejected" : "error");
+    };
+    const handleWalletState = (event: Event) => {
+      const state = (event as CustomEvent<{ state?: WalletUiState }>).detail?.state;
+      if (state) setWalletState(state);
+    };
+    window.addEventListener("solguard-wallet-error", handleWalletError);
+    window.addEventListener("solguard-wallet-state", handleWalletState);
+    return () => {
+      window.removeEventListener("solguard-wallet-error", handleWalletError);
+      window.removeEventListener("solguard-wallet-state", handleWalletState);
+    };
+  }, []);
+
   const handleDisconnect = async () => {
     try {
       await disconnect();
     } finally {
       setMenuOpen(false);
+      setWalletState("disconnected");
+      console.log("[SolGuard wallet] disconnected");
     }
   };
 
@@ -71,7 +105,12 @@ export function WalletButton({ variant = "default", className }: WalletButtonPro
 
   return (
     <motion.button
-      onClick={() => setVisible(true)}
+      onClick={() => {
+        console.log("[SolGuard wallet] connect modal opened");
+        setWalletState("disconnected");
+        window.dispatchEvent(new CustomEvent("solguard-wallet-connect-requested"));
+        setVisible(true);
+      }}
       disabled={connecting}
       className={cn(
         "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm",
@@ -84,9 +123,19 @@ export function WalletButton({ variant = "default", className }: WalletButtonPro
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
-      <Wallet className="w-4 h-4" />
+      {walletState === "rejected" || walletState === "error" ? (
+        <AlertCircle className="w-4 h-4 text-amber-300" />
+      ) : (
+        <Wallet className="w-4 h-4" />
+      )}
       <span className={cn(isCompact && "hidden sm:inline")}>
-        {connecting ? "Connecting..." : "Connect Wallet"}
+        {walletState === "connecting"
+          ? "Connecting..."
+          : walletState === "rejected"
+            ? "Request rejected"
+            : walletState === "error"
+              ? "Wallet error"
+              : "Connect Wallet"}
       </span>
     </motion.button>
   );
