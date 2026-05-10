@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Shield, Loader2, CheckCircle } from "lucide-react";
+import { Shield, CheckCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { AnalysisStep } from "@/types";
 import { cn } from "@/lib/utils";
@@ -11,13 +11,6 @@ interface LoadingStateProps {
   stepLabel: string;
   progress: number;
 }
-
-const STEP_ICONS: Record<string, React.ReactNode> = {
-  fetching: <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />,
-  analyzing: <Shield className="w-5 h-5 text-emerald-400 animate-pulse" />,
-  generating: <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />,
-  complete: <CheckCircle className="w-5 h-5 text-emerald-400" />,
-};
 
 const STEPS_LIST = [
   { id: "fetching", label: "Fetching on-chain data" },

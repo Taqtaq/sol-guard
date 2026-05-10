@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useId } from "react";
 import {
   AreaChart,
   Area,
@@ -16,7 +17,17 @@ interface TransactionActivityChartProps {
   data: TransactionPoint[];
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+interface TransactionTooltipPayload {
+  value?: number | string;
+}
+
+interface TransactionTooltipProps {
+  active?: boolean;
+  payload?: TransactionTooltipPayload[];
+  label?: string | number;
+}
+
+function CustomTooltip({ active, payload, label }: TransactionTooltipProps) {
   if (active && payload?.length) {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs shadow-xl">
@@ -29,6 +40,8 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export function TransactionActivityChart({ data }: TransactionActivityChartProps) {
+  const gradientId = `tx-gradient-${useId().replace(/:/g, "")}`;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -41,7 +54,7 @@ export function TransactionActivityChart({ data }: TransactionActivityChartProps
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
             <defs>
-              <linearGradient id="txGradient" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
               </linearGradient>
@@ -64,7 +77,7 @@ export function TransactionActivityChart({ data }: TransactionActivityChartProps
               dataKey="transactions"
               stroke="#10b981"
               strokeWidth={2}
-              fill="url(#txGradient)"
+              fill={`url(#${gradientId})`}
               dot={false}
               activeDot={{ r: 4, fill: "#10b981", strokeWidth: 0 }}
             />

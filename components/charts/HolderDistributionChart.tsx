@@ -10,6 +10,7 @@ import {
   Legend,
 } from "recharts";
 import { HolderData } from "@/types";
+import type { ReactNode } from "react";
 
 const COLORS = ["#ef4444", "#f97316", "#eab308", "#10b981", "#6366f1"];
 
@@ -17,7 +18,21 @@ interface HolderDistributionChartProps {
   data: HolderData[];
 }
 
-function CustomTooltip({ active, payload }: any) {
+interface ChartPayload<TPayload> {
+  payload: TPayload;
+}
+
+interface TooltipProps<TPayload> {
+  active?: boolean;
+  payload?: Array<ChartPayload<TPayload>>;
+}
+
+interface LegendEntry {
+  color?: string;
+  value?: ReactNode;
+}
+
+function CustomTooltip({ active, payload }: TooltipProps<HolderData>) {
   if (active && payload?.length) {
     const d = payload[0].payload;
     return (
@@ -30,10 +45,10 @@ function CustomTooltip({ active, payload }: any) {
   return null;
 }
 
-function CustomLegend({ payload }: any) {
+function CustomLegend({ payload }: { payload?: LegendEntry[] }) {
   return (
     <div className="flex flex-wrap gap-2 justify-center mt-2">
-      {payload?.map((entry: any, i: number) => (
+      {payload?.map((entry, i) => (
         <div key={i} className="flex items-center gap-1.5">
           <div className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
           <span className="text-xs text-zinc-400">{entry.value}</span>
@@ -65,8 +80,11 @@ export function HolderDistributionChart({ data }: HolderDistributionChartProps) 
               dataKey="percentage"
               nameKey="name"
             >
-              {data.map((_, idx) => (
-                <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+              {data.map((holder, idx) => (
+                <Cell
+                  key={`${holder.name}-${holder.percentage}`}
+                  fill={COLORS[idx % COLORS.length]}
+                />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />

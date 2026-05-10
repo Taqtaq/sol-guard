@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import {
   Copy,
-  ExternalLink,
   CheckCircle2,
   XCircle,
   Info,
@@ -18,10 +17,14 @@ import { toast } from "sonner";
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast.success("Copied to clipboard");
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy to clipboard");
+    }
   };
   return (
     <button
